@@ -1,11 +1,17 @@
 package main;
 
+import org.dreambot.api.methods.walking.impl.Walking;
+import org.dreambot.api.script.ScriptManifest;
 import org.dreambot.api.methods.Calculations;
 import org.dreambot.api.methods.map.Area;
 import org.dreambot.api.script.AbstractScript;
 import org.dreambot.api.script.Category;
-import org.dreambot.api.script.ScriptManifest;
-import org.dreambot.api.wrappers.interactive.GameObject;
+
+import java.awt.*;
+import java.io.IOException;
+import javax.imageio.ImageIO;
+import java.net.URL;
+import java.util.concurrent.TimeUnit;
 import org.dreambot.api.wrappers.interactive.NPC;
 import util.CurrentStatus;
 import util.LocationValidator;
@@ -19,7 +25,9 @@ import util.Tanner;
  */
 
 @ScriptManifest(author = "CheeseQueso", category = Category.MONEYMAKING, description = "Tans hides (soft or hard) in AlKharid, then walks to GE", name = "QuesoTanner", version = 1.0)
-public class main extends AbstractScript{
+public class main extends AbstractScript {
+
+
 
     //X, Y, Z DIAGONAL COORDINATES OF BANK AND TANNING
     Area alkharidBank = new Area(3269, 3161, 3271, 3170, 0);
@@ -44,6 +52,16 @@ public class main extends AbstractScript{
 
     private int goldWithdrawAction = 0;
 
+    // PAINT VARIABLE DECLARATIONS
+    private long timeBegan;
+    private long timeRan;
+    private Color blue = new Color(40, 40, 40);
+    private int hideCount = 0;
+
+
+    public main() throws IOException {
+    }
+
     /** Set the initial values */
     @Override
     public void onStart() {
@@ -55,6 +73,8 @@ public class main extends AbstractScript{
 
         //Current script status
         currentStatus = CurrentStatus.INITIALIZING;
+
+        timeBegan = System.currentTimeMillis();
 
         super.onStart();
     }
@@ -70,8 +90,8 @@ public class main extends AbstractScript{
 
                 boolean insideBank = initializer.insideBankingArea(alkharidBank, getLocalPlayer());
 
-                    if (insideBank) {
-                        currentStatus = CurrentStatus.BANKING;
+                if (insideBank) {
+                    currentStatus = CurrentStatus.BANKING;
                 } else {
                     log("You have no more hides, we need to stop or walk to GE based on GUI selection");
                 }
@@ -103,6 +123,94 @@ public class main extends AbstractScript{
 
     }
 
+    private String timeConversion(long duration)
+    {
+        String res = "";
+        long days = TimeUnit.MILLISECONDS.toDays(duration);
+        long hours = TimeUnit.MILLISECONDS.toHours(duration)
+                - TimeUnit.DAYS.toHours(TimeUnit.MILLISECONDS.toDays(duration));
+        long minutes = TimeUnit.MILLISECONDS.toMinutes(duration)
+                - TimeUnit.HOURS.toMinutes(TimeUnit.MILLISECONDS
+                .toHours(duration));
+        long seconds = TimeUnit.MILLISECONDS.toSeconds(duration)
+                - TimeUnit.MINUTES.toSeconds(TimeUnit.MILLISECONDS
+                .toMinutes(duration));
+        if (days == 0) {
+            res = (hours + ":" + minutes + ":" + seconds);
+        } else {
+            res = (days + ":" + hours + ":" + minutes + ":" + seconds);
+        }
+        return res;
+    }
+
+    // PAINT VARIABLE DECLARATIONS
+    URL url_pic = new URL("http://i.imgur.com/wYGWnNd.png");
+    Image bg = ImageIO.read(url_pic.openStream());
+
+    /** Draw the paint for the script */
+    public void onPaint(Graphics g)
+    {
+
+        //Get the bot running time
+        timeRan = System.currentTimeMillis() - this.timeBegan;
+
+        //Set paint text color
+        g.setColor(blue);
+
+        //Draw the bg image on-screen
+        g.drawImage(bg, 5, 346, null);
+
+        //Hides Left (101, 389)
+        g.drawString("Hides Left", 101, 389);
+
+        //Hides Completed(140, 411)
+        g.drawString(checkHideCount(), 140, 411);
+
+        //Estimated Profit(140, 426)
+        g.drawString(checkProfit(), 140, 426);
+
+        //Total Running Time(156, 446)
+        g.drawString(timeConversion(timeRan), 156, 446);
+
+        //Current Status(373, 390)
+        g.drawString(getCurrentStatus(), 373, 390);
+
+    }
+
+    /** Get a string version of the current status in the game */
+    private String getCurrentStatus() {
+        if (currentStatus == currentStatus.INITIALIZING) {
+            return "Initializing State";
+        } else if (currentStatus == currentStatus.BANKING) {
+            return "Banking Data";
+        } else if (currentStatus == currentStatus.TAN) {
+            return "Currently Tanning";
+        } else if (currentStatus == currentStatus.TRAVEL) {
+            return "Travelling to Destination";
+        } else {
+            return "SCRIPT ERROR! Restart!";
+        }
+    }
+
+    /** Paint update method  for hide counts */
+    private String checkHideCount() {
+        if (getBank().isOpen()) {
+            int updatedHideCount = getBank().count(leather -> leather != null && leather.getName().contains("Hard"));
+            hideCount = updatedHideCount;
+            return Integer.toString(updatedHideCount);
+        }
+        else {
+            return Integer.toString(hideCount);
+        }
+    }
+
+    /** Gets the current profit that is made utilizing real-time GE prices */
+    private String checkProfit() {
+
+        //To:DO - Integrate method to grab real-time GE prices from the Jagex API
+        return Integer.toString(hideCount* 140);
+    }
+
     /** Handle all the logic for withdrawing and depositing goods */
     private void handleBanking() {
 
@@ -111,7 +219,7 @@ public class main extends AbstractScript{
         sleepUntil(() -> getBank().isOpen(), 3500);
 
         if (!bank.checkHidesExistInBank()){
-            stop();
+            //stop();
         }
 
         if (goldWithdrawAction == 0) {

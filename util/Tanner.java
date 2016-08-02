@@ -88,9 +88,12 @@ public class Tanner {
 
         //Tan Tanner
         if (desertTanner != null) {
-            script.log("Attempting to trade");
-            desertTanner.interact("Trade");
-            script.sleepUntil(() -> script.getWidgets().getWidgetChild(324, child_widget_int).isVisible(), 3000);
+            try {
+                script.log("Attempting to trade");
+                desertTanner.interact("Trade");
+            } catch (Exception e) {
+                script.log(e.toString());
+            }
         } else {
             script.log("Tanner is null ERROR");
         }
@@ -98,6 +101,8 @@ public class Tanner {
 
     /** Tan all the hides in the player inventory */
     public void tanAllHides(int child_widget_int) {
+
+        script.sleepUntil(() -> script.getWidgets().getWidgetChild(324, child_widget_int).isVisible(), 1000);
 
         if (script.getWidgets().getWidgetChild(324, child_widget_int) !=null){
             script.getWidgets().getWidgetChild(324, child_widget_int).interact("Tan All");
