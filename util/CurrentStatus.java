@@ -5,6 +5,6 @@ package util;
  */
 public enum CurrentStatus {
 
-    INITIALIZING, BANKING, TRAVEL, TAN;
+    INITIALIZING, BANKING, TRAVEL, TAN, GE
 
 }

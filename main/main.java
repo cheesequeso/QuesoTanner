@@ -1,15 +1,19 @@
 package main;
 
+import org.dreambot.api.methods.container.impl.bank.BankLocation;
+
 import org.dreambot.api.methods.walking.impl.Walking;
 import org.dreambot.api.script.ScriptManifest;
 import org.dreambot.api.methods.Calculations;
 import org.dreambot.api.methods.map.Area;
 import org.dreambot.api.script.AbstractScript;
 import org.dreambot.api.script.Category;
+import org.dreambot.api.methods.container.impl.bank.BankLocation;
 
 import java.awt.*;
 import java.io.IOException;
 import javax.imageio.ImageIO;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
 import org.dreambot.api.wrappers.interactive.NPC;
@@ -20,14 +24,32 @@ import util.LeatherType;
 import util.Tanner;
 
 
-/**
+/**********************************************************
  * Banks, Tans and Travels. The Ultimate F2P Bot Tanner
+ **********************************************************/
+
+/**
+ *
+ ____ _  _ ____ ____ ____ _  _ ___    ___  _  _ ____ ____
+ |    |  | |__/ |__/ |___ |\ |  |     |__] |  | | __ [__
+ |___ |__| |  \ |  \ |___ | \|  |     |__] |__| |__] ___]
+
+ **** Tanner goes null in console on initial trade
+ **** Banking has a slight delay delay
+ **** Handling door closed/open issue could be quicker
+ **** Doesn't handle if you have more hides but you're out of money
  */
 
 @ScriptManifest(author = "CheeseQueso", category = Category.MONEYMAKING, description = "Tans hides (soft or hard) in AlKharid, then walks to GE", name = "QuesoTanner", version = 1.0)
 public class main extends AbstractScript {
 
 
+
+    //PAINT VARIABLE DECLARATIONS
+    URL url_pic = new URL("http://i.imgur.com/wYGWnNd.png");
+    URL backsplash_pic = new URL("http://i.imgur.com/AhsBmq1.png");
+    Image bg = ImageIO.read(url_pic.openStream());
+    Image splash = ImageIO.read(backsplash_pic.openStream());
 
     //X, Y, Z DIAGONAL COORDINATES OF BANK AND TANNING
     Area alkharidBank = new Area(3269, 3161, 3271, 3170, 0);
@@ -50,17 +72,23 @@ public class main extends AbstractScript {
     //Current status in script traversal
     private CurrentStatus currentStatus;
 
+    //Boolean to track initial gold withdraw
     private int goldWithdrawAction = 0;
 
     // PAINT VARIABLE DECLARATIONS
     private long timeBegan;
     private long timeRan;
     private Color blue = new Color(40, 40, 40);
-    private int hideCount = 0;
 
+    NPC desertTanner = null;
+
+    private String hideCount = "0";
+    private String hidesLeft = "0";
 
     public main() throws IOException {
     }
+
+
 
     /** Set the initial values */
     @Override
@@ -92,8 +120,6 @@ public class main extends AbstractScript {
 
                 if (insideBank) {
                     currentStatus = CurrentStatus.BANKING;
-                } else {
-                    log("You have no more hides, we need to stop or walk to GE based on GUI selection");
                 }
                 break;
             case BANKING:
@@ -107,6 +133,9 @@ public class main extends AbstractScript {
             case TAN:
                 log("We are tanning");
                 handleTanning();
+                break;
+            case GE:
+                handleGE();
                 break;
             default:
                 log("Default case");
@@ -123,6 +152,7 @@ public class main extends AbstractScript {
 
     }
 
+    /** Get current running time for the paint */
     private String timeConversion(long duration)
     {
         String res = "";
@@ -143,14 +173,10 @@ public class main extends AbstractScript {
         return res;
     }
 
-    // PAINT VARIABLE DECLARATIONS
-    URL url_pic = new URL("http://i.imgur.com/wYGWnNd.png");
-    Image bg = ImageIO.read(url_pic.openStream());
 
     /** Draw the paint for the script */
     public void onPaint(Graphics g)
     {
-
         //Get the bot running time
         timeRan = System.currentTimeMillis() - this.timeBegan;
 
@@ -158,23 +184,26 @@ public class main extends AbstractScript {
         g.setColor(blue);
 
         //Draw the bg image on-screen
-        g.drawImage(bg, 5, 346, null);
+        g.drawImage(bg, 10, 346, null);
 
-        //Hides Left (101, 389)
-        g.drawString("Hides Left", 101, 389);
+        //Draw the bg image on-screen
+        g.drawImage(splash, 55, 48, null);
 
-        //Hides Completed(140, 411)
-        g.drawString(checkHideCount(), 140, 411);
+        //Hides Left
+        //To-DO Move this down a little bit
+        g.drawString(getHidesLeft(), 107, 392);
 
-        //Estimated Profit(140, 426)
-        g.drawString(checkProfit(), 140, 426);
+        //Hides Completed
+        g.drawString(checkHideCount(), 149, 412);
 
-        //Total Running Time(156, 446)
-        g.drawString(timeConversion(timeRan), 156, 446);
+        //Estimated Profit
+        g.drawString(checkProfit(), 146, 430);
 
-        //Current Status(373, 390)
-        g.drawString(getCurrentStatus(), 373, 390);
+        //Total Running Time
+        g.drawString(timeConversion(timeRan), 161, 449);
 
+        //Current Status
+        g.drawString(getCurrentStatus(), 381, 390);
     }
 
     /** Get a string version of the current status in the game */
@@ -186,7 +215,9 @@ public class main extends AbstractScript {
         } else if (currentStatus == currentStatus.TAN) {
             return "Currently Tanning";
         } else if (currentStatus == currentStatus.TRAVEL) {
-            return "Travelling to Destination";
+            return "Travelling";
+        } else if (currentStatus == currentStatus.GE) {
+            return "Grand Exchange";
         } else {
             return "SCRIPT ERROR! Restart!";
         }
@@ -195,46 +226,83 @@ public class main extends AbstractScript {
     /** Paint update method  for hide counts */
     private String checkHideCount() {
         if (getBank().isOpen()) {
-            int updatedHideCount = getBank().count(leather -> leather != null && leather.getName().contains("Hard"));
-            hideCount = updatedHideCount;
-            return Integer.toString(updatedHideCount);
+            int newHideCount = getBank().count(leather -> leather != null && leather.getName().contains("Hard leather"));
+            hideCount = Integer.toString(newHideCount);
+            return hideCount;
         }
         else {
-            return Integer.toString(hideCount);
+            return hideCount;
+        }
+    }
+
+    /** Paint update method  for hide counts */
+    private String getHidesLeft() {
+        if (getBank().isOpen()) {
+            int newHideCount = getBank().count(leather -> leather != null && leather.getName().contains("Cow"));
+             hidesLeft = Integer.toString(newHideCount);
+            return hidesLeft;
+        }
+        else {
+            return hidesLeft;
         }
     }
 
     /** Gets the current profit that is made utilizing real-time GE prices */
     private String checkProfit() {
 
-        //To:DO - Integrate method to grab real-time GE prices from the Jagex API
-        return Integer.toString(hideCount* 140);
+        return Integer.toString(Integer.parseInt(hideCount) * 140);
     }
 
+
+    /** Handle go to the GE */
+    public void handleGE() {
+
+        log("Going to grand exchange");
+        initializer.walkToGrandExchange();
+
+    }
     /** Handle all the logic for withdrawing and depositing goods */
     private void handleBanking() {
 
         bank.bankBanker();
 
-        sleepUntil(() -> getBank().isOpen(), 3500);
+        sleepUntil(() -> getBank().isOpen(), 45000);
 
-        if (!bank.checkHidesExistInBank()){
-            //stop();
+        if (!bank.checkHidesExistInBank() && currentStatus != CurrentStatus.GE){
+            getBank().depositAllItems();
+            currentStatus = CurrentStatus.GE;
         }
 
-        if (goldWithdrawAction == 0) {
-            bank.withdrawGold(tanStatus);
-            log("Withdrew gold!");
+        if (goldWithdrawAction == 0 && getBank().isOpen() && bank.checkHidesExistInBank() && currentStatus != CurrentStatus.GE) {
+
+            if (!bank.checkSufficientFunds(tanStatus)) {
+                log("Not enough funds!");
+                currentStatus = CurrentStatus.GE;
+            } else {
+                log("We have enough funds");
+                if (goldWithdrawAction == 0) {
+                    bank.withdrawGold(tanStatus);
+                }
+                log("Withdrew gold!");
+            }
+
         }
 
-        if (getInventory().contains(coins -> coins != null && coins.getName().contains("Coins"))) {
+        if (getBank().isOpen() && getInventory().contains(coins -> coins != null && coins.getName().contains("Coins")) && bank.checkHidesExistInBank() && currentStatus != CurrentStatus.GE) {
+
+            //Only withdraw gold on the initial run
             goldWithdrawAction = 1;
+
+            //Deposit everything but gold
             bank.depositAll();
 
-            //TO-DO: This function is probably more annoying than useful.
-            //bank.checkSufficientFunds(tanStatus);
-
+            //Withdraw your hides
             bank.withdrawHides();
+
+            //Avoid the initial random sleep timer for initial movement
+            getWalking().walk(tannerArea.getRandomTile());
+
+            //Change status
             currentStatus = CurrentStatus.TRAVEL;
         }
     }
@@ -245,13 +313,15 @@ public class main extends AbstractScript {
         //Travel to tanner
         initializer.walkToTanner(tannerArea);
 
-        NPC desertTanner = getNpcs().closest(tanner -> tanner != null && tanner.hasAction("Trade"));
+        if (getNpcs().closest(tanner -> tanner != null && tanner.hasAction("Trade")) != null) {
+            desertTanner = getNpcs().closest(tanner -> tanner != null && tanner.hasAction("Trade"));
+        }
 
         //Checks to see if the door to tanner is present and open, if not open it
         tanner.handleDoorOutside(tannerArea);
 
         //Ensure the tanner is present and the player is in the tanning area
-        if (desertTanner.isOnScreen() && initializer.insideTanningArea(tannerArea, getLocalPlayer())) {
+        if ( desertTanner != null && desertTanner.isOnScreen() && initializer.insideTanningArea(tannerArea, getLocalPlayer())) {
             currentStatus = CurrentStatus.TAN;
         }
     }
@@ -283,14 +353,14 @@ public class main extends AbstractScript {
 
             log("All hides tanned sucessfully!");
 
-            //Handle if the door is closed from the inside
-            if (tanner.handleDoorInside()) {
+            getWalking().walk(alkharidBank.getRandomTile());
 
-                log("Handled the door and exited the tanner.");
+            //Handle if the door is closed from the inside
+//            if (tanner.handleDoorInside()) {
 
                 //Restart the work-flow
                 currentStatus = CurrentStatus.INITIALIZING;
-            }
+//            }
         }
     }
 }

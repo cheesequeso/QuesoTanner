@@ -11,6 +11,7 @@ import org.dreambot.api.methods.map.Area;
 public class Tanner {
 
     public AbstractScript script;
+    NPC desertTanner = null;
 
     public Tanner(AbstractScript script) {
         this.script = script;
@@ -42,17 +43,20 @@ public class Tanner {
     public boolean handleDoorInside() {
 
         Tile doorTile = new Tile(3278, 3191, 0);
-        Area outsideTanner = new Area(3269, 3161, 3271, 3170, 0);
+        Area bankArea = new Area(3269, 3161, 3271, 3170, 0);
         Area tannerArea = new Area(3271, 3189, 3275, 3193, 0);
 
-        GameObject tannerDoor = script.getGameObjects().closest(door -> door != null && door.getID() == 1536 && script.getLocalPlayer().distance(doorTile) <= 2);
+        GameObject tannerDoor = script.getGameObjects().closest(door -> door != null && door.getID() == 1536 && script.getLocalPlayer().distance(doorTile) <= 9);
 
         if (tannerDoor == null) {
             script.log("Not in range of the door");
-            script.getWalking().walk(doorTile);
-            script.sleepUntil(() -> script.getLocalPlayer().distance(doorTile) <= 2, 3000);
-            script.getWalking().walk(outsideTanner.getRandomTile());
-            script.sleepUntil(() -> outsideTanner.contains(script.getLocalPlayer()), 4000);
+
+            if (tannerDoor.hasAction("Open")) {
+                script.getWalking().walk(doorTile);
+                script.sleepUntil(() -> script.getLocalPlayer().distance(doorTile) <= 2, 3000);
+            }
+            script.getWalking().walk(bankArea.getRandomTile());
+            script.sleepUntil(() -> bankArea.contains(script.getLocalPlayer()), 4000);
         } else {
             script.log("In range of door");
         }
@@ -81,7 +85,7 @@ public class Tanner {
 
         //Get the desert tanner dude
         //TO:DO add this into a try-catch block
-        NPC desertTanner = null;
+
         if (script.getNpcs().closest(tanner -> tanner != null && tanner.hasAction("Trade") && tanner.getName().contains("Ellis")) != null) {
             desertTanner = script.getNpcs().closest(tanner -> tanner != null && tanner.hasAction("Trade") && tanner.getName().contains("Ellis"));
         }
@@ -102,7 +106,7 @@ public class Tanner {
     /** Tan all the hides in the player inventory */
     public void tanAllHides(int child_widget_int) {
 
-        script.sleepUntil(() -> script.getWidgets().getWidgetChild(324, child_widget_int).isVisible(), 1000);
+        script.sleepUntil(() -> script.getWidgets().getWidgetChild(324, child_widget_int).isVisible(), 8000);
 
         if (script.getWidgets().getWidgetChild(324, child_widget_int) !=null){
             script.getWidgets().getWidgetChild(324, child_widget_int).interact("Tan All");
